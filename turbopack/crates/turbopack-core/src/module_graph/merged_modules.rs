@@ -430,6 +430,7 @@ pub async fn compute_merged_modules(module_graph: Vc<ModuleGraph>) -> Result<Vc<
                                 }
                                 Ok(())
                             },
+                            false,
                         )?;
 
                         list_lists.push(lists);
@@ -550,6 +551,7 @@ pub async fn compute_merged_modules(module_graph: Vc<ModuleGraph>) -> Result<Vc<
                 }
                 Ok(())
             },
+            false,
         )?;
 
         drop(inner_span);
