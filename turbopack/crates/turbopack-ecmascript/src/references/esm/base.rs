@@ -425,7 +425,7 @@ impl ModuleReference for EsmAssetReference {
                 origin.resolve_options(),
             );
             let loader_fs_path = if let Some(source) = *resolved.first_source().await? {
-                (*source.ident().path().await?).clone()
+                source.ident().await?.path.clone()
             } else {
                 bail!("Unable to resolve turbopackLoader '{}'", loader.loader);
             };
@@ -816,7 +816,7 @@ impl Issue for InvalidExport {
     }
 
     async fn file_path(&self) -> Result<FileSystemPath> {
-        self.source.file_path().owned().await
+        self.source.file_path().await
     }
 
     async fn description(&self) -> Result<Option<StyledString>> {
@@ -899,7 +899,7 @@ impl Issue for CircularReExport {
     }
 
     async fn file_path(&self) -> Result<FileSystemPath> {
-        self.module.ident().path().owned().await
+        Ok(self.module.ident().await?.path.clone())
     }
 
     async fn description(&self) -> Result<Option<StyledString>> {
