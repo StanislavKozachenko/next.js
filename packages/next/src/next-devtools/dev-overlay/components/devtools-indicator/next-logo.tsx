@@ -7,6 +7,7 @@ import { css } from '../../utils/css'
 import { useDevOverlayContext } from '../../../dev-overlay.browser'
 import { useRenderErrorContext } from '../../dev-overlay'
 import { useDelayedRender } from '../../hooks/use-delayed-render'
+import { useDebouncedValue } from '../../hooks/use-debounced-value'
 import {
   ACTION_ERROR_OVERLAY_CLOSE,
   ACTION_ERROR_OVERLAY_OPEN,
@@ -16,6 +17,15 @@ import { BASE_LOGO_SIZE } from '../../utils/indicator-metrics'
 import { StatusIndicator, Status, getCurrentStatus } from './status-indicator'
 
 const SHORT_DURATION_MS = 150
+
+// Smooth out rapid active↔active transitions (e.g. Compiling→Rendering→
+// Compiling during a burst of HMR events). Only active→active transitions are
+// debounced; transitions to/from None are always immediate: going to None lets
+// fast single builds cancel the enter timer before the pill appears; coming
+// from None lets the pill appear after enterDelay without additional debounce delay.
+const STATUS_DEBOUNCE_MS = 300
+const isTransitioningToOrFromNone = (prev: Status, next: Status) =>
+  next === Status.None || prev === Status.None
 
 export function NextLogo({
   onTriggerClick,
@@ -42,12 +52,26 @@ export function NextLogo({
   )
 
   // Cache indicator state management
-  const isCacheFilling = state.cacheIndicator === 'filling'
   const isCacheBypassing = state.cacheIndicator === 'bypass'
 
+  // Get the current status from the state. Debounce active↔active transitions
+  // (e.g. Compiling→Rendering) so bursts of HMR events don't flicker the
+  // badge. Transitions to None are committed immediately so fast single builds
+  // cancel the enter timer before the pill becomes visible.
+  const currentStatus = useDebouncedValue(
+    getCurrentStatus(
+      state.buildingIndicator,
+      state.renderingIndicator,
+      state.cacheIndicator
+    ),
+    STATUS_DEBOUNCE_MS,
+    {
+      leading: isTransitioningToOrFromNone,
+    }
+  )
+
   // Determine if we should show any status (excluding cache bypass, which renders like error badge)
-  const shouldShowStatus =
-    state.buildingIndicator || state.renderingIndicator || isCacheFilling
+  const shouldShowStatus = currentStatus !== Status.None
 
   // Delay showing for 400ms to catch fast operations,
   // and keep visible for minimum time (longer for warnings)
@@ -58,13 +82,6 @@ export function NextLogo({
 
   const ref = useRef<HTMLDivElement | null>(null)
   const measuredWidth = useMeasureWidth(ref)
-
-  // Get the current status from the state
-  const currentStatus = getCurrentStatus(
-    state.buildingIndicator,
-    state.renderingIndicator,
-    state.cacheIndicator
-  )
 
   const displayStatus = showStatusIndicator ? currentStatus : Status.None
 
