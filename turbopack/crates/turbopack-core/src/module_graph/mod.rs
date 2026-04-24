@@ -276,12 +276,13 @@ impl SingleModuleGraph {
         visited_modules: &FxIndexMap<ResolvedVc<Box<dyn Module>>, GraphNodeIndex>,
         include_traced: bool,
         include_binding_usage: bool,
+        entries_are_traced: bool,
     ) -> Result<Vc<Self>> {
         let emit_spans = tracing::enabled!(Level::INFO);
         let root_nodes = entries
             .iter()
             .flat_map(|e| e.entries())
-            .map(|e| SingleModuleGraphBuilderNode::new_module(emit_spans, e, false))
+            .map(|e| SingleModuleGraphBuilderNode::new_module(emit_spans, e, entries_are_traced))
             .try_join()
             .await?;
 
@@ -1482,6 +1483,7 @@ impl SingleModuleGraph {
             &Default::default(),
             include_traced,
             include_binding_usage,
+            false,
         )
         .await
     }
@@ -1497,6 +1499,7 @@ impl SingleModuleGraph {
             &Default::default(),
             include_traced,
             include_binding_usage,
+            false,
         )
         .await
     }
@@ -1513,6 +1516,7 @@ impl SingleModuleGraph {
             &visited_modules.connect().await?.modules,
             include_traced,
             include_binding_usage,
+            false,
         )
         .await
     }
@@ -1530,6 +1534,23 @@ impl SingleModuleGraph {
             &visited_modules.connect().await?.modules,
             include_traced,
             include_binding_usage,
+            false,
+        )
+        .await
+    }
+
+    #[turbo_tasks::function(operation)]
+    pub async fn new_with_traced_entries(
+        entries: ResolvedVc<GraphEntries>,
+        include_traced: bool,
+        include_binding_usage: bool,
+    ) -> Result<Vc<Self>> {
+        SingleModuleGraph::new_inner(
+            entries.owned().await?,
+            &Default::default(),
+            include_traced,
+            include_binding_usage,
+            true,
         )
         .await
     }
