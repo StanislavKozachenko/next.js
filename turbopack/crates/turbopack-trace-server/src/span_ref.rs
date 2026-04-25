@@ -181,10 +181,10 @@ impl<'a> SpanRef<'a> {
     #[allow(dead_code)]
     pub fn events(&self) -> impl DoubleEndedIterator<Item = SpanEventRef<'a>> {
         self.span.events.iter().map(|event| match event {
-            &SpanEvent::SelfTime { start, end } => SpanEventRef::SelfTime {
+            &SpanEvent::SelfTime { start, duration } => SpanEventRef::SelfTime {
                 store: self.store,
                 start,
-                end,
+                end: Timestamp::from_value(*start + duration.get()),
             },
             SpanEvent::Child { index } => SpanEventRef::Child {
                 span: SpanRef {
@@ -286,16 +286,17 @@ impl<'a> SpanRef<'a> {
                 .events
                 .par_iter()
                 .filter_map(|event| {
-                    if let SpanEvent::SelfTime { start, end } = event {
-                        let duration = *end - *start;
-                        if !duration.is_zero() {
-                            store.set_max_self_time_lookup(*end);
-                            let corrected_time =
-                                store.self_time_tree.as_ref().map_or(duration, |tree| {
-                                    tree.lookup_range_corrected_time(*start, *end)
-                                });
-                            return Some(corrected_time);
-                        }
+                    // `duration` is `NonZeroU64`, so zero-duration events are
+                    // already filtered at insert time.
+                    if let SpanEvent::SelfTime { start, duration } = event {
+                        let end = Timestamp::from_value(**start + duration.get());
+                        let dur = Timestamp::from_value(duration.get());
+                        store.set_max_self_time_lookup(end);
+                        let corrected_time = store
+                            .self_time_tree
+                            .as_ref()
+                            .map_or(dur, |tree| tree.lookup_range_corrected_time(*start, end));
+                        return Some(corrected_time);
                     }
                     None
                 })

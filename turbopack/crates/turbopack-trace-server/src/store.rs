@@ -213,6 +213,9 @@ impl Store {
         end: Timestamp,
         outdated_spans: &mut FxHashSet<SpanIndex>,
     ) {
+        let Some(event) = SpanEvent::self_time(start, end) else {
+            return;
+        };
         let span = &mut self.spans[span_index.get()];
         let time_data = span.time_data_mut();
         if time_data.ignore_self_time {
@@ -221,7 +224,7 @@ impl Store {
         outdated_spans.insert(span_index);
         time_data.self_time += end - start;
         time_data.self_end = max(time_data.self_end, end);
-        span.events.push(SpanEvent::SelfTime { start, end });
+        span.events.push(event);
         self.insert_self_time(start, end, span_index, outdated_spans);
     }
 
@@ -249,18 +252,12 @@ impl Store {
         for (start, end, index) in children {
             if start > current {
                 if start > self_end {
-                    events.push(SpanEvent::SelfTime {
-                        start: current,
-                        end: self_end,
-                    });
+                    events.push(SpanEvent::self_time(current, self_end).unwrap());
                     self.insert_self_time(current, self_end, span_index, outdated_spans);
                     self_time += self_end - current;
                     break;
                 }
-                events.push(SpanEvent::SelfTime {
-                    start: current,
-                    end: start,
-                });
+                events.push(SpanEvent::self_time(current, start).unwrap());
                 self.insert_self_time(current, start, span_index, outdated_spans);
                 self_time += start - current;
             }
@@ -270,16 +267,10 @@ impl Store {
         current -= start_time;
         if current < total_time {
             self_time += total_time - current;
-            events.push(SpanEvent::SelfTime {
-                start: current + start_time,
-                end: start_time + total_time,
-            });
-            self.insert_self_time(
-                current + start_time,
-                start_time + total_time,
-                span_index,
-                outdated_spans,
-            );
+            let st = current + start_time;
+            let en = start_time + total_time;
+            events.push(SpanEvent::self_time(st, en).unwrap());
+            self.insert_self_time(st, en, span_index, outdated_spans);
         }
         let span = &mut self.spans[span_index.get()];
         outdated_spans.insert(span_index);

@@ -1,5 +1,5 @@
 use std::{
-    num::NonZeroUsize,
+    num::{NonZeroU64, NonZeroUsize},
     sync::{Arc, OnceLock},
 };
 
@@ -102,8 +102,28 @@ impl Span {
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum SpanEvent {
-    SelfTime { start: Timestamp, end: Timestamp },
-    Child { index: SpanIndex },
+    /// `duration` is `NonZeroU64` so the larger variant has a niche; combined with
+    /// `Child`'s `NonZeroUsize`, this lets the compiler pack `SpanEvent` to 16 bytes
+    /// (vs. 24 with a separate discriminant). Callers must filter zero-duration
+    /// self-time events before constructing.
+    SelfTime {
+        start: Timestamp,
+        duration: NonZeroU64,
+    },
+    Child {
+        index: SpanIndex,
+    },
+}
+
+const _: () = assert!(std::mem::size_of::<SpanEvent>() == 16);
+
+impl SpanEvent {
+    /// Constructs a `SelfTime` event from start and end timestamps. Returns `None`
+    /// if `end <= start` (zero or negative duration).
+    pub fn self_time(start: Timestamp, end: Timestamp) -> Option<Self> {
+        let duration = NonZeroU64::new(*end.saturating_sub(start))?;
+        Some(SpanEvent::SelfTime { start, duration })
+    }
 }
 
 #[derive(Clone)]
@@ -178,5 +198,39 @@ impl SpanBottomUp {
             self_persistent_allocations: OnceLock::new(),
             self_allocation_count: OnceLock::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn span_event_self_time_filters_zero_duration() {
+        let t = Timestamp::from_micros(100);
+        assert!(SpanEvent::self_time(t, t).is_none());
+        // end < start should also return None (saturating_sub clamps to 0).
+        assert!(SpanEvent::self_time(t, Timestamp::from_micros(50)).is_none());
+    }
+
+    #[test]
+    fn span_event_self_time_constructs_positive_duration() {
+        let start = Timestamp::from_micros(100);
+        let end = Timestamp::from_micros(150);
+        let event = SpanEvent::self_time(start, end).unwrap();
+        match event {
+            SpanEvent::SelfTime { start: s, duration } => {
+                assert_eq!(s, start);
+                assert_eq!(duration.get(), *end - *start);
+            }
+            SpanEvent::Child { .. } => panic!("expected SelfTime"),
+        }
+    }
+
+    #[test]
+    fn span_event_size_is_16() {
+        // Backstop for the const assert; if this fails the const assert above
+        // would also fail, but having a test gives a clearer error message.
+        assert_eq!(std::mem::size_of::<SpanEvent>(), 16);
     }
 }
