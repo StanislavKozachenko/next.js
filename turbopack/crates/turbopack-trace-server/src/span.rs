@@ -11,11 +11,15 @@ use crate::timestamp::Timestamp;
 
 pub type SpanIndex = NonZeroUsize;
 
-/// Storage for `Span::args`. Most spans have 0–1 args (typically just the
+/// Storage for `Span::args` ~32% of spans have <=1 arg (typically just the
 /// `name` key for `turbo_tasks::function` spans), so inlining one entry
-/// avoids a heap allocation in the common case. With one inline slot plus
-/// the workspace's `union` feature, this is the same 24 bytes as a `Vec`.
+/// avoids a heap allocation in this common case.
 pub type SpanArgs = SmallVec<[(RcStr, RcStr); 1]>;
+
+/// Storage for `Span::events`. ~69% of spans have <=1 event (a single
+/// self-time event for leaf spans), so inlining one entry avoids a heap
+/// allocation in this common case.
+pub type SpanEvents = SmallVec<[SpanEvent; 1]>;
 
 pub struct Span {
     // These values won't change after creation:
@@ -27,7 +31,7 @@ pub struct Span {
     pub args: SpanArgs,
 
     // This might change during writing:
-    pub events: Vec<SpanEvent>,
+    pub events: SpanEvents,
     pub is_complete: bool,
 
     // These values are computed automatically:
