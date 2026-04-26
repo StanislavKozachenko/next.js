@@ -22,8 +22,8 @@ use crate::{
     timestamp::Timestamp,
 };
 
-pub type GroupNameToDirectAndRecusiveSpans<'l> =
-    FxIndexMap<(&'l str, &'l str), (Vec<SpanIndex>, Vec<SpanIndex>)>;
+pub type GroupNameToDirectAndRecusiveSpans =
+    FxIndexMap<(RcStr, RcStr), (Vec<SpanIndex>, Vec<SpanIndex>)>;
 
 #[derive(Copy, Clone)]
 pub struct SpanRef<'a> {
@@ -86,7 +86,7 @@ impl<'a> SpanRef<'a> {
         self.index == 0
     }
 
-    pub fn nice_name(&self) -> (&'a str, &'a str) {
+    pub fn nice_name(&self) -> (RcStr, RcStr) {
         let (category, title) = self.names().nice_name.get_or_init(|| {
             if let Some(name) = self
                 .span
@@ -112,10 +112,10 @@ impl<'a> SpanRef<'a> {
                 (self.span.category.clone(), self.span.name.clone())
             }
         });
-        (category.as_str(), title.as_str())
+        (category.clone(), title.clone())
     }
 
-    pub fn group_name(&self) -> (&'a str, &'a str) {
+    pub fn group_name(&self) -> (RcStr, RcStr) {
         let (category, title) = self.names().group_name.get_or_init(|| {
             if matches!(self.span.name.as_str(), "turbo_tasks::function") {
                 let name = self
@@ -145,11 +145,11 @@ impl<'a> SpanRef<'a> {
                 (self.span.category.clone(), self.span.name.clone())
             }
         });
-        (category.as_str(), title.as_str())
+        (category.clone(), title.clone())
     }
 
-    pub fn args(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.span.args.iter().map(|(k, v)| (k.as_str(), v.as_str()))
+    pub fn args(&self) -> impl Iterator<Item = (&'a RcStr, &'a RcStr)> {
+        self.span.args.iter().map(|(k, v)| (k, v))
     }
 
     pub fn self_time(&self) -> Timestamp {
@@ -466,12 +466,12 @@ impl<'a> SpanRef<'a> {
                 }
                 let (cat, name) = span.nice_name();
                 if !cat.is_empty() {
-                    push_to_index(index, cat, || RcStr::from(cat), span.index());
+                    push_to_index(index, cat.as_str(), || cat.clone(), span.index());
                 }
                 if !name.is_empty() {
                     push_to_index(
                         index,
-                        name,
+                        name.as_str(),
                         || RcStr::from(format!("name={name}")),
                         span.index(),
                     );
