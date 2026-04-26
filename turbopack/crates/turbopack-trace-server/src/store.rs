@@ -48,16 +48,11 @@ fn new_root_span() -> Span {
         args: SpanArgs::new(),
         events: SpanEvents::new(),
         is_complete: true,
-        max_depth: OnceLock::new(),
         self_allocations: 0,
         self_allocation_count: 0,
         self_deallocations: 0,
         self_deallocation_count: 0,
-        total_allocations: OnceLock::new(),
-        total_deallocations: OnceLock::new(),
-        total_persistent_allocations: OnceLock::new(),
-        total_allocation_count: OnceLock::new(),
-        total_span_count: OnceLock::new(),
+        totals: OnceLock::new(),
         time_data: OnceLock::new(),
         extra: OnceLock::new(),
         names: OnceLock::new(),
@@ -122,16 +117,11 @@ impl Store {
             args,
             events: SpanEvents::new(),
             is_complete: false,
-            max_depth: OnceLock::new(),
             self_allocations: 0,
             self_allocation_count: 0,
             self_deallocations: 0,
             self_deallocation_count: 0,
-            total_allocations: OnceLock::new(),
-            total_deallocations: OnceLock::new(),
-            total_persistent_allocations: OnceLock::new(),
-            total_allocation_count: OnceLock::new(),
-            total_span_count: OnceLock::new(),
+            totals: OnceLock::new(),
             time_data: OnceLock::new(),
             extra: OnceLock::new(),
             names: OnceLock::new(),
@@ -388,11 +378,7 @@ impl Store {
                 time_data.corrected_self_time.take();
                 time_data.corrected_total_time.take();
             }
-            span.total_allocations.take();
-            span.total_deallocations.take();
-            span.total_persistent_allocations.take();
-            span.total_allocation_count.take();
-            span.total_span_count.take();
+            span.totals.take();
             span.extra.take();
         }
 
