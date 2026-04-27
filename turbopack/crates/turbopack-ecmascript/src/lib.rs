@@ -1972,7 +1972,7 @@ async fn process_parse_result(
                         .unwrap_or("".into());
                     let msg = &*turbofmt!(
                         "Could not parse module '{}'\n{error_messages}",
-                        ident.await?.path.clone()
+                        ident.await?.path
                     )
                     .await?;
                     let body = vec![
@@ -2002,7 +2002,7 @@ async fn process_parse_result(
                 ParseResult::NotFound => {
                     let msg = &*turbofmt!(
                         "Could not parse module '{}', file not found",
-                        ident.await?.path.clone()
+                        ident.await?.path
                     )
                     .await?;
                     let body = vec![
